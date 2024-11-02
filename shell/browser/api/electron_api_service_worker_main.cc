@@ -183,6 +183,12 @@ const blink::StorageKey ServiceWorkerMain::GetStorageKey() {
 }
 
 v8::Local<v8::Promise> ServiceWorkerMain::StartWorker(v8::Isolate* isolate) {
+  if (version_destroyed_) {
+    auto promise = gin_helper::Promise<void>(isolate);
+    promise.RejectWithErrorMessage("ServiceWorkerMain is destroyed");
+    return promise.GetHandle();
+  }
+
   if (start_worker_promise_) {
     return start_worker_promise_->GetHandle();
   }
