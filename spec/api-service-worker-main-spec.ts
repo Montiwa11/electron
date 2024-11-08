@@ -100,6 +100,21 @@ describe('ServiceWorkerMain module', () => {
     return serviceWorker!;
   }
 
+  /** Runs a test using the framework in preload-tests.js */
+  const runTest = async (serviceWorker: Electron.ServiceWorkerMain, rpc: { name: string, args: any[] }) => {
+    const uuid = crypto.randomUUID();
+    serviceWorker.send('test', uuid, rpc.name, ...rpc.args);
+    return new Promise((resolve, reject) => {
+      serviceWorker.ipc.once(`test-result-${uuid}`, (_event, { error, result }) => {
+        if (error) {
+          reject(result);
+        } else {
+          resolve(result);
+        }
+      });
+    });
+  };
+
   describe('serviceWorkers.fromVersionID', () => {
     it('returns undefined for non-live service worker', () => {
       expect(serviceWorkers.fromVersionID(-1)).to.be.undefined();
@@ -295,20 +310,6 @@ describe('ServiceWorkerMain module', () => {
   });
 
   describe('ipc', () => {
-    const runTest = async (serviceWorker: Electron.ServiceWorkerMain, rpc: { name: string, args: any[] }) => {
-      const uuid = crypto.randomUUID();
-      serviceWorker.send('test', uuid, rpc.name, ...rpc.args);
-      return new Promise((resolve, reject) => {
-        serviceWorker.ipc.once(`test-result-${uuid}`, (_event, { error, result }) => {
-          if (error) {
-            reject(result);
-          } else {
-            resolve(result);
-          }
-        });
-      });
-    };
-
     beforeEach(() => {
       registerPreload('preload-tests.js');
     });
@@ -367,6 +368,19 @@ describe('ServiceWorkerMain module', () => {
         const result = await runTest(serviceWorker, { name: 'testInvoke', args: ['ping'] });
         expect(result).to.equal('pong');
       });
+    });
+  });
+
+  describe('contextBridge', () => {
+    beforeEach(() => {
+      registerPreload('preload-tests.js');
+    });
+
+    it('can evaluate func from preload realm', async () => {
+      loadWorkerScript();
+      const serviceWorker = await waitForServiceWorker('running');
+      const result = await runTest(serviceWorker, { name: 'testEvaluate', args: ['evalConstructorName'] });
+      expect(result).to.equal('ServiceWorkerGlobalScope');
     });
   });
 

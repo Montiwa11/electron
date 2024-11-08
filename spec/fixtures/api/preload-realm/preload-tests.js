@@ -1,5 +1,9 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+const evalTests = {
+  evalConstructorName: () => globalThis.constructor.name
+};
+
 const tests = {
   testSend: (name, ...args) => {
     ipcRenderer.send(name, ...args);
@@ -8,8 +12,11 @@ const tests = {
     const result = await ipcRenderer.invoke(name, ...args);
     return result;
   },
-  testEvaluate: (code) => {
-    const result = contextBridge.evaluateInMainWorld(code);
+  testEvaluate: (testName, args) => {
+    const func = evalTests[testName];
+    const result = args
+      ? contextBridge.evaluateInMainWorld({ func, args })
+      : contextBridge.evaluateInMainWorld({ func });
     return result;
   }
 };

@@ -2,11 +2,13 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 let result;
 try {
-  result = contextBridge.evaluateInMainWorld(`({
-    chromeType: typeof chrome,
-    id: globalThis.chrome?.runtime.id,
-    manifest: globalThis.chrome?.runtime.getManifest(),
-  })`);
+  result = contextBridge.evaluateInMainWorld({
+    func: () => ({
+      chromeType: typeof chrome,
+      id: globalThis.chrome?.runtime.id,
+      manifest: globalThis.chrome?.runtime.getManifest()
+    })
+  });
 } catch (error) {
   console.error(error);
 }

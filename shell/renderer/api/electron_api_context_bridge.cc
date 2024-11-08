@@ -13,11 +13,14 @@
 
 #include "base/containers/contains.h"
 #include "base/feature_list.h"
+#include "base/json/json_writer.h"
 #include "base/trace_event/trace_event.h"
 #include "content/public/renderer/render_frame.h"
 #include "content/public/renderer/render_frame_observer.h"
+#include "gin/converter.h"
 #include "shell/common/gin_converters/blink_converter.h"
 #include "shell/common/gin_converters/callback_converter.h"
+#include "shell/common/gin_converters/value_converter.h"
 #include "shell/common/gin_helper/dictionary.h"
 #include "shell/common/gin_helper/promise.h"
 #include "shell/common/node_includes.h"
@@ -915,10 +918,9 @@ v8::MaybeLocal<v8::Value> CloneValueToContext(
 
 // Evaluate a script in the target world ID. The script is executed
 // synchronously and clones the result into the calling context.
-v8::Local<v8::Value> EvaluateInWorld(v8::Isolate* isolate,
-                                     const int world_id,
-                                     const std::string& source,
-                                     gin_helper::Arguments* args) {
+v8::Local<v8::Value> EvaluateStringInWorld(v8::Isolate* isolate,
+                                           const int world_id,
+                                           const std::string& source) {
   v8::Local<v8::Context> source_context = isolate->GetCurrentContext();
   v8::Context::Scope source_scope(source_context);
 
@@ -927,8 +929,9 @@ v8::Local<v8::Value> EvaluateInWorld(v8::Isolate* isolate,
       GetTargetContext(isolate, world_id);
   v8::Local<v8::Context> target_context;
   if (!maybe_target_context.ToLocal(&target_context)) {
-    isolate->ThrowException(v8::Exception::Error(
-        gin::StringToV8(isolate, "Unknown error")));  // TODO
+    isolate->ThrowException(v8::Exception::Error(gin::StringToV8(
+        isolate,
+        base::StringPrintf("Failed to get context for world %d", world_id))));
     return v8::Local<v8::Value>();
   }
 
@@ -985,6 +988,86 @@ v8::Local<v8::Value> EvaluateInWorld(v8::Isolate* isolate,
     return v8::Local<v8::Value>();
   }
   return cloned_result;
+}
+
+// Serialize script to be evaluated in the given world.
+v8::Local<v8::Value> EvaluateInWorld(v8::Isolate* isolate,
+                                     const int world_id,
+                                     gin_helper::Arguments* args) {
+  gin_helper::Dictionary script;
+
+  if (args->Length() >= 1 && !args->GetNext(&script)) {
+    gin_helper::ErrorThrower(args->isolate()).ThrowError("Invalid script");
+    return v8::Local<v8::Value>();
+  }
+
+  // Get "func" from script
+  v8::Local<v8::Function> func;
+  if (!script.Get("func", &func)) {
+    gin_helper::ErrorThrower(isolate).ThrowError(
+        "Function 'func' is required in script");
+    return v8::Local<v8::Value>();
+  }
+
+  // Get optional "args" from script
+  v8::Local<v8::Array> args_array;
+  v8::Local<v8::Value> args_value;
+  if (script.Get("args", &args_value)) {
+    if (!args_value->IsArray()) {
+      gin_helper::ErrorThrower(isolate).ThrowError("'args' must be an array");
+      return v8::Local<v8::Value>();
+    }
+    args_array = args_value.As<v8::Array>();
+  } else {
+    args_array = v8::Array::New(isolate);
+  }
+
+  // Serialize the function
+  v8::Local<v8::String> serialized_func;
+  if (!func->FunctionProtoToString(isolate->GetCurrentContext())
+           .ToLocal(&serialized_func)) {
+    gin_helper::ErrorThrower(isolate).ThrowError(
+        "Failed to serialize function");
+    return v8::Local<v8::Value>();
+  }
+  v8::String::Utf8Value serialized_func_utf8(isolate, serialized_func);
+  std::string func_str(*serialized_func_utf8, serialized_func_utf8.length());
+
+  // Serialize arguments to JSON strings
+  std::vector<std::string> args_strings;
+  uint32_t args_length = args_array->Length();
+  v8::Local<v8::Context> context = isolate->GetCurrentContext();
+
+  for (uint32_t i = 0; i < args_length; ++i) {
+    v8::Local<v8::Value> arg;
+    if (!args_array->Get(context, i).ToLocal(&arg)) {
+      gin_helper::ErrorThrower(isolate).ThrowError(
+          base::StringPrintf("Failed to get argument at index %d", i));
+      return v8::Local<v8::Value>();
+    }
+
+    base::Value base_value;
+    if (!gin::ConvertFromV8(isolate, arg, &base_value)) {
+      gin_helper::ErrorThrower(isolate).ThrowError(
+          base::StringPrintf("Failed to serialize argument at index %d", i));
+      return v8::Local<v8::Value>();
+    }
+
+    std::string json_string;
+    if (!base::JSONWriter::Write(base_value, &json_string)) {
+      gin_helper::ErrorThrower(isolate).ThrowError(
+          base::StringPrintf("Failed to serialize argument at index %d", i));
+      return v8::Local<v8::Value>();
+    }
+
+    args_strings.push_back(json_string);
+  }
+
+  std::string args_expression = base::JoinString(args_strings, ",");
+  std::string code_to_execute =
+      base::StringPrintf("(%s)(%s)", func_str.c_str(), args_expression.c_str());
+
+  return EvaluateStringInWorld(isolate, world_id, code_to_execute);
 }
 
 }  // namespace api

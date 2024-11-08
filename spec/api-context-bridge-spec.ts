@@ -108,7 +108,7 @@ describe('contextBridge', () => {
       };
 
       const callWithBindings = (fn: Function, worldId: number = 0) =>
-        worldId === 0 ? w.webContents.executeJavaScript(`(${fn.toString()})(window)`) : w.webContents.executeJavaScriptInIsolatedWorld(worldId, [{ code: `(${fn.toString()})(window)` }]); ;
+        worldId === 0 ? w.webContents.executeJavaScript(`(${fn.toString()})(window)`) : w.webContents.executeJavaScriptInIsolatedWorld(worldId, [{ code: `(${fn.toString()})(window)` }]);
 
       const getGCInfo = async (): Promise<{
         trackedValues: number;
@@ -1288,6 +1288,89 @@ describe('contextBridge', () => {
             });
             expect(result).to.equal('still here');
           });
+        });
+      });
+
+      describe('evaluateInMainWorld', () => {
+        it('serializes function and args', async () => {
+          await makeBindingWindow(async () => {
+            const values = [
+              undefined,
+              null,
+              123,
+              'string',
+              true,
+              [123, 'string', true, ['foo']],
+              () => 'string',
+              Symbol('foo')
+            ];
+            function appendArg (arg: any) {
+              // @ts-ignore
+              globalThis.args = globalThis.args || [];
+              // @ts-ignore
+              globalThis.args.push(arg);
+            }
+            for (const value of values) {
+              try {
+                await contextBridge.evaluateInMainWorld({
+                  func: appendArg,
+                  args: [value]
+                });
+              } catch {
+                contextBridge.evaluateInMainWorld({
+                  func: appendArg,
+                  args: ['FAIL']
+                });
+              }
+            }
+          });
+          const result = await callWithBindings(() => {
+            // @ts-ignore
+            return globalThis.args;
+          });
+          expect(result).to.deep.equal([
+            'FAIL',
+            null,
+            123,
+            'string',
+            true,
+            [123, 'string', true, ['foo']],
+            'FAIL',
+            'FAIL'
+          ]);
+        });
+
+        it('safely clones returned objects', async () => {
+          await makeBindingWindow(() => {
+            const obj = contextBridge.evaluateInMainWorld({
+              func: () => ({})
+            });
+            // @ts-ignore
+            globalThis.safe = obj.constructor === Object;
+          });
+          const result = await callWithBindings(() => {
+            // @ts-ignore
+            return globalThis.safe;
+          }, 999);
+          expect(result).to.be.true();
+        });
+
+        it('uses internal Function.prototype.toString', async () => {
+          await makeBindingWindow(() => {
+            const funcHack = () => {
+              // @ts-ignore
+              globalThis.hacked = 'nope';
+            };
+            funcHack.toString = () => '() => { globalThis.hacked = \'gotem\'; }';
+            contextBridge.evaluateInMainWorld({
+              func: funcHack
+            });
+          });
+          const result = await callWithBindings(() => {
+            // @ts-ignore
+            return globalThis.hacked;
+          });
+          expect(result).to.equal('nope');
         });
       });
     });
