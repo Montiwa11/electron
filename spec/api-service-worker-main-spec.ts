@@ -88,7 +88,7 @@ describe('ServiceWorkerMain module', () => {
     const serviceWorkerPromise = new Promise<Electron.ServiceWorkerMain>((resolve) => {
       function onRunningStatusChanged ({ versionId, runningStatus }: Electron.ServiceWorkersRunningStatusChangedEventParams) {
         if (runningStatus === expectedRunningStatus) {
-          const serviceWorker = serviceWorkers.fromVersionID(versionId)!;
+          const serviceWorker = serviceWorkers.getWorkerFromVersionID(versionId)!;
           serviceWorkers.off('running-status-changed', onRunningStatusChanged);
           resolve(serviceWorker);
         }
@@ -115,19 +115,19 @@ describe('ServiceWorkerMain module', () => {
     });
   };
 
-  describe('serviceWorkers.fromVersionID', () => {
+  describe('serviceWorkers.getWorkerFromVersionID', () => {
     it('returns undefined for non-live service worker', () => {
-      expect(serviceWorkers.fromVersionID(-1)).to.be.undefined();
-      expect(serviceWorkers._fromVersionIDIfExists(-1)).to.be.undefined();
+      expect(serviceWorkers.getWorkerFromVersionID(-1)).to.be.undefined();
+      expect(serviceWorkers._getWorkerFromVersionIDIfExists(-1)).to.be.undefined();
     });
 
     it('returns instance for live service worker', async () => {
       const runningStatusChanged = once(serviceWorkers, 'running-status-changed');
       loadWorkerScript();
       const [{ versionId }] = await runningStatusChanged;
-      const serviceWorker = serviceWorkers.fromVersionID(versionId);
+      const serviceWorker = serviceWorkers.getWorkerFromVersionID(versionId);
       expect(serviceWorker).to.not.be.undefined();
-      const ifExistsServiceWorker = serviceWorkers._fromVersionIDIfExists(versionId);
+      const ifExistsServiceWorker = serviceWorkers._getWorkerFromVersionIDIfExists(versionId);
       expect(ifExistsServiceWorker).to.not.be.undefined();
       expect(serviceWorker).to.equal(ifExistsServiceWorker);
     });
@@ -138,7 +138,7 @@ describe('ServiceWorkerMain module', () => {
       const actualStatuses = [];
       for await (const [{ versionId, runningStatus }] of on(serviceWorkers, 'running-status-changed')) {
         if (!serviceWorker) {
-          serviceWorker = serviceWorkers.fromVersionID(versionId);
+          serviceWorker = serviceWorkers.getWorkerFromVersionID(versionId);
         }
         actualStatuses.push(runningStatus);
         if (runningStatus === 'stopping') {
@@ -155,7 +155,7 @@ describe('ServiceWorkerMain module', () => {
       const { versionId } = runningServiceWorker;
       unregisterAllServiceWorkers();
       await waitUntil(() => runningServiceWorker.isDestroyed());
-      const serviceWorker = serviceWorkers.fromVersionID(versionId);
+      const serviceWorker = serviceWorkers.getWorkerFromVersionID(versionId);
       expect(serviceWorker).to.be.undefined();
     });
   });
@@ -290,7 +290,7 @@ describe('ServiceWorkerMain module', () => {
       const runningStatusChanged = once(serviceWorkers, 'running-status-changed');
       wc.loadURL(`${baseUrl}/index.html`);
       const [{ versionId }] = await runningStatusChanged;
-      const serviceWorker = serviceWorkers.fromVersionID(versionId);
+      const serviceWorker = serviceWorkers.getWorkerFromVersionID(versionId);
       expect(serviceWorker).to.not.be.undefined();
       if (!serviceWorker) return;
       expect(serviceWorker).to.have.property('versionId').that.is.a('number');
