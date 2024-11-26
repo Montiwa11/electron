@@ -68,8 +68,8 @@ The `contextBridge` module has the following methods:
 * `executionScript` Object
   * `func` (...args: any[]) => any - A JavaScript function to execute. This function will be serialized which means
       that any bound parameters and execution context will be lost.
-  * `args` any[] (optional) - The arguments to pass to the provided function. These arguments must
-      be JSON-serializable.
+  * `args` any[] (optional) - An array of arguments to pass to the provided function. These
+      arguments must be JSON-serializable.
 
 Returns `any` - A copy of the resulting value from executing the function in the main world.
 [Refer to the table](#parameter--error--return-type-support) on how values are copied between worlds.
