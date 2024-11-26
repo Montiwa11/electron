@@ -990,10 +990,10 @@ v8::Local<v8::Value> EvaluateStringInWorld(v8::Isolate* isolate,
   return cloned_result;
 }
 
-// Serialize script to be evaluated in the given world.
-v8::Local<v8::Value> EvaluateInWorld(v8::Isolate* isolate,
-                                     const int world_id,
-                                     gin_helper::Arguments* args) {
+// Serialize script to be executed in the given world.
+v8::Local<v8::Value> ExecuteInWorld(v8::Isolate* isolate,
+                                    const int world_id,
+                                    gin_helper::Arguments* args) {
   gin_helper::Dictionary script;
 
   if (args->Length() >= 1 && !args->GetNext(&script)) {
@@ -1082,7 +1082,7 @@ void Initialize(v8::Local<v8::Object> exports,
                 void* priv) {
   v8::Isolate* isolate = context->GetIsolate();
   gin_helper::Dictionary dict(isolate, exports);
-  dict.SetMethod("evaluateInWorld", &electron::api::EvaluateInWorld);
+  dict.SetMethod("executeInWorld", &electron::api::ExecuteInWorld);
   dict.SetMethod("exposeAPIInWorld", &electron::api::ExposeAPIInWorld);
   dict.SetMethod("_overrideGlobalValueFromIsolatedWorld",
                  &electron::api::OverrideGlobalValueFromIsolatedWorld);
