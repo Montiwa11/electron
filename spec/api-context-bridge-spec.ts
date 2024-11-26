@@ -1291,7 +1291,7 @@ describe('contextBridge', () => {
         });
       });
 
-      describe('evaluateInMainWorld', () => {
+      describe('executeInMainWorld', () => {
         it('serializes function and args', async () => {
           await makeBindingWindow(async () => {
             const values = [
@@ -1312,12 +1312,12 @@ describe('contextBridge', () => {
             }
             for (const value of values) {
               try {
-                await contextBridge.evaluateInMainWorld({
+                await contextBridge.executeInMainWorld({
                   func: appendArg,
                   args: [value]
                 });
               } catch {
-                contextBridge.evaluateInMainWorld({
+                contextBridge.executeInMainWorld({
                   func: appendArg,
                   args: ['FAIL']
                 });
@@ -1342,7 +1342,7 @@ describe('contextBridge', () => {
 
         it('safely clones returned objects', async () => {
           await makeBindingWindow(() => {
-            const obj = contextBridge.evaluateInMainWorld({
+            const obj = contextBridge.executeInMainWorld({
               func: () => ({})
             });
             // @ts-ignore
@@ -1362,7 +1362,7 @@ describe('contextBridge', () => {
               globalThis.hacked = 'nope';
             };
             funcHack.toString = () => '() => { globalThis.hacked = \'gotem\'; }';
-            contextBridge.evaluateInMainWorld({
+            contextBridge.executeInMainWorld({
               func: funcHack
             });
           });

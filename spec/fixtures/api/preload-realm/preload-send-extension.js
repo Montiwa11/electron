@@ -2,7 +2,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 let result;
 try {
-  result = contextBridge.evaluateInMainWorld({
+  result = contextBridge.executeInMainWorld({
     func: () => ({
       chromeType: typeof chrome,
       id: globalThis.chrome?.runtime.id,

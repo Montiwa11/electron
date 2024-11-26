@@ -15,8 +15,8 @@ const tests = {
   testEvaluate: (testName, args) => {
     const func = evalTests[testName];
     const result = args
-      ? contextBridge.evaluateInMainWorld({ func, args })
-      : contextBridge.evaluateInMainWorld({ func });
+      ? contextBridge.executeInMainWorld({ func, args })
+      : contextBridge.executeInMainWorld({ func });
     return result;
   }
 };
