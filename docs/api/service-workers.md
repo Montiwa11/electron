@@ -75,7 +75,7 @@ The following methods are available on instances of `ServiceWorkers`:
 
 Returns `Record<number, ServiceWorkerInfo>` - A [ServiceWorkerInfo](structures/service-worker-info.md) object where the keys are the service worker version ID and the values are the information about that service worker.
 
-#### `serviceWorkers.getFromVersionID(versionId)`
+#### `serviceWorkers.getInfoFromVersionID(versionId)`
 
 * `versionId` number - ID of the service worker version
 
@@ -83,7 +83,17 @@ Returns [`ServiceWorkerInfo`](structures/service-worker-info.md) - Information a
 
 If the service worker does not exist or is not running this method will throw an exception.
 
-#### `serviceWorkers.fromVersionID(versionId)` _Experimental_
+#### `serviceWorkers.getFromVersionID(versionId)` _Deprecated_
+
+* `versionId` number - ID of the service worker version
+
+Returns [`ServiceWorkerInfo`](structures/service-worker-info.md) - Information about this service worker
+
+If the service worker does not exist or is not running this method will throw an exception.
+
+**Deprecated:** Use the new `serviceWorkers.getInfoFromVersionID` API.
+
+#### `serviceWorkers.getWorkerFromVersionID(versionId)` _Experimental_
 
 * `versionId` number - ID of the service worker version
 

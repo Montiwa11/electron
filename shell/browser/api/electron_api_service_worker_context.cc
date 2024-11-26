@@ -20,6 +20,7 @@
 #include "shell/common/gin_converters/service_worker_converter.h"
 #include "shell/common/gin_converters/value_converter.h"
 #include "shell/common/gin_helper/dictionary.h"
+#include "shell/common/node_util.h"
 
 using ServiceWorkerStatus =
     content::ServiceWorkerRunningInfo::ServiceWorkerVersionStatus;
@@ -172,7 +173,7 @@ v8::Local<v8::Value> ServiceWorkerContext::GetAllRunningWorkerInfo(
   return builder.Build();
 }
 
-v8::Local<v8::Value> ServiceWorkerContext::GetWorkerInfoFromID(
+v8::Local<v8::Value> ServiceWorkerContext::GetInfoFromVersionID(
     gin_helper::ErrorThrower thrower,
     int64_t version_id) {
   const base::flat_map<int64_t, content::ServiceWorkerRunningInfo>& info_map =
@@ -186,7 +187,19 @@ v8::Local<v8::Value> ServiceWorkerContext::GetWorkerInfoFromID(
                                         std::move(iter->second));
 }
 
-v8::Local<v8::Value> ServiceWorkerContext::FromVersionID(
+v8::Local<v8::Value> ServiceWorkerContext::GetFromVersionID(
+    gin_helper::ErrorThrower thrower,
+    int64_t version_id) {
+  util::EmitWarning(thrower.isolate(),
+                    "The session.serviceWorkers.getFromVersionID API is "
+                    "deprecated, use "
+                    "session.serviceWorkers.getInfoFromVersionID instead.",
+                    "ServiceWorkersDeprecateGetFromVersionID");
+
+  return GetInfoFromVersionID(thrower, version_id);
+}
+
+v8::Local<v8::Value> ServiceWorkerContext::GetWorkerFromVersionID(
     gin_helper::ErrorThrower thrower,
     int64_t version_id) {
   return ServiceWorkerMain::From(thrower.isolate(), service_worker_context_,
@@ -195,9 +208,9 @@ v8::Local<v8::Value> ServiceWorkerContext::FromVersionID(
 }
 
 // static
-gin::Handle<ServiceWorkerMain> ServiceWorkerContext::FromVersionIDIfExists(
-    v8::Isolate* isolate,
-    int64_t version_id) {
+gin::Handle<ServiceWorkerMain>
+ServiceWorkerContext::GetWorkerFromVersionIDIfExists(v8::Isolate* isolate,
+                                                     int64_t version_id) {
   ServiceWorkerMain* worker =
       ServiceWorkerMain::FromVersionID(version_id, storage_partition_);
   if (!worker)
@@ -220,10 +233,13 @@ gin::ObjectTemplateBuilder ServiceWorkerContext::GetObjectTemplateBuilder(
              ServiceWorkerContext>::GetObjectTemplateBuilder(isolate)
       .SetMethod("getAllRunning",
                  &ServiceWorkerContext::GetAllRunningWorkerInfo)
-      .SetMethod("getFromVersionID", &ServiceWorkerContext::GetWorkerInfoFromID)
-      .SetMethod("fromVersionID", &ServiceWorkerContext::FromVersionID)
-      .SetMethod("_fromVersionIDIfExists",
-                 &ServiceWorkerContext::FromVersionIDIfExists);
+      .SetMethod("getFromVersionID", &ServiceWorkerContext::GetFromVersionID)
+      .SetMethod("getInfoFromVersionID",
+                 &ServiceWorkerContext::GetInfoFromVersionID)
+      .SetMethod("getWorkerFromVersionID",
+                 &ServiceWorkerContext::GetWorkerFromVersionID)
+      .SetMethod("_getWorkerFromVersionIDIfExists",
+                 &ServiceWorkerContext::GetWorkerFromVersionIDIfExists);
 }
 
 const char* ServiceWorkerContext::GetTypeName() {

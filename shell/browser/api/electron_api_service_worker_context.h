@@ -39,12 +39,15 @@ class ServiceWorkerContext final
       ElectronBrowserContext* browser_context);
 
   v8::Local<v8::Value> GetAllRunningWorkerInfo(v8::Isolate* isolate);
-  v8::Local<v8::Value> GetWorkerInfoFromID(gin_helper::ErrorThrower thrower,
-                                           int64_t version_id);
-  v8::Local<v8::Value> FromVersionID(gin_helper::ErrorThrower thrower,
-                                     int64_t version_id);
-  gin::Handle<ServiceWorkerMain> FromVersionIDIfExists(v8::Isolate* isolate,
-                                                       int64_t version_id);
+  v8::Local<v8::Value> GetInfoFromVersionID(gin_helper::ErrorThrower thrower,
+                                            int64_t version_id);
+  v8::Local<v8::Value> GetFromVersionID(gin_helper::ErrorThrower thrower,
+                                        int64_t version_id);
+  v8::Local<v8::Value> GetWorkerFromVersionID(gin_helper::ErrorThrower thrower,
+                                              int64_t version_id);
+  gin::Handle<ServiceWorkerMain> GetWorkerFromVersionIDIfExists(
+      v8::Isolate* isolate,
+      int64_t version_id);
 
   // content::ServiceWorkerContextObserver
   void OnReportConsoleMessage(int64_t version_id,

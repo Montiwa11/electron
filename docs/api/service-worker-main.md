@@ -40,7 +40,7 @@ const { serviceWorkers } = session.defaultSession
 
 // Collect service workers
 const versions = Object.values(serviceWorkers.getAllRunning()).map(({ versionId }) => {
-  return serviceWorkers.fromVersionID(versionId)
+  return serviceWorkers.getWorkerFromVersionID(versionId)
 })
 
 app.on('browser-window-created', (event, window) => {
@@ -70,7 +70,7 @@ const { serviceWorkers } = session.defaultSession
 async function fetchData () {}
 
 const versionId = 0
-const serviceWorker = serviceWorkers.fromVersionID(versionId)
+const serviceWorker = serviceWorkers.getWorkerFromVersionID(versionId)
 
 serviceWorker?.ipc.handle('request-data', async () => {
   // Keep service worker alive while fetching data

@@ -68,7 +68,7 @@ declare namespace Electron {
   }
 
   interface ServiceWorkers {
-    _fromVersionIDIfExists(versionId: number): Electron.ServiceWorkerMain | undefined;
+    _getWorkerFromVersionIDIfExists(versionId: number): Electron.ServiceWorkerMain | undefined;
   }
 
   interface ServiceWorkerMain {

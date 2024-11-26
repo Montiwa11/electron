@@ -19,11 +19,11 @@ const addReturnValueToEvent = (event: Electron.IpcMainEvent | Electron.IpcMainSe
  */
 export function addIpcDispatchListeners (api: NodeJS.EventEmitter, serviceWorkers: Electron.ServiceWorkers) {
   const getServiceWorkerFromEvent = (event: Electron.IpcMainServiceWorkerEvent | Electron.IpcMainServiceWorkerInvokeEvent): ServiceWorkerMain | undefined => {
-    return serviceWorkers._fromVersionIDIfExists(event.versionId);
+    return serviceWorkers._getWorkerFromVersionIDIfExists(event.versionId);
   };
   const addServiceWorkerPropertyToEvent = (event: Electron.IpcMainServiceWorkerEvent | Electron.IpcMainServiceWorkerInvokeEvent) => {
     Object.defineProperty(event, 'serviceWorker', {
-      get: () => serviceWorkers.fromVersionID(event.versionId)
+      get: () => serviceWorkers.getWorkerFromVersionID(event.versionId)
     });
   };
 
