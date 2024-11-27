@@ -63,11 +63,11 @@ describe('ServiceWorkerMain module', () => {
   });
 
   function registerPreload (scriptName: string) {
-    ses.registerPreloadScript({
-      id: crypto.randomUUID(),
+    const id = ses.registerPreloadScript({
       type: 'service-worker',
       filePath: path.resolve(preloadRealmFixtures, scriptName)
     });
+    expect(id).to.be.a('string');
   }
 
   async function loadWorkerScript (scriptUrl?: string) {

@@ -1344,10 +1344,13 @@ registered.
 
 #### `ses.registerPreloadScript(script)`
 
-* `script` [PreloadScript](structures/preload-script.md) - Preload script
+* `script` [PreloadScriptRegistration](structures/preload-script-registration.md) - Preload script
 
-Registers script that will be executed on ALL web contents that are associated with
-this session just before normal `preload` scripts run.
+Registers preload script that will be executed in its associated context type in this session. For
+`frame` contexts, this will run prior to any preload defined in the web preferences of a
+WebContents.
+
+Returns `string` - The ID of the registered preload script.
 
 #### `ses.unregisterPreloadScript(id)`
 

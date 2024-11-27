@@ -9,6 +9,7 @@
 
 #include "base/containers/fixed_flat_map.h"
 #include "base/files/file_path.h"
+#include "base/uuid.h"
 #include "gin/converter.h"
 #include "shell/common/gin_converters/file_path_converter.h"
 #include "shell/common/gin_helper/dictionary.h"
@@ -89,7 +90,7 @@ struct Converter<PreloadScript> {
     if (std::string id; options.Get("id", &id)) {
       out->id = id;
     } else {
-      return false;
+      out->id = base::Uuid::GenerateRandomV4().AsLowercaseString();
     }
     if (bool deprecated; options.Get("_deprecated", &deprecated)) {
       out->deprecated = deprecated;

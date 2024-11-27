@@ -1062,8 +1062,9 @@ void Session::CreateInterruptedDownload(const gin_helper::Dictionary& options) {
       base::Time::FromSecondsSinceUnixEpoch(start_time)));
 }
 
-void Session::RegisterPreloadScript(gin_helper::ErrorThrower thrower,
-                                    const PreloadScript& new_preload_script) {
+std::string Session::RegisterPreloadScript(
+    gin_helper::ErrorThrower thrower,
+    const PreloadScript& new_preload_script) {
   auto* prefs = SessionPreferences::FromBrowserContext(browser_context());
   DCHECK(prefs);
 
@@ -1078,7 +1079,7 @@ void Session::RegisterPreloadScript(gin_helper::ErrorThrower thrower,
     thrower.ThrowError(base::StringPrintf(
         "Cannot register preload script with existing ID '%s'",
         new_preload_script.id.c_str()));
-    return;
+    return "";
   }
 
   if (!new_preload_script.file_path.IsAbsolute()) {
@@ -1090,11 +1091,12 @@ void Session::RegisterPreloadScript(gin_helper::ErrorThrower thrower,
       thrower.ThrowError(
           base::StringPrintf("Preload script must have absolute path: %s",
                              new_preload_script.file_path.value().c_str()));
-      return;
+      return "";
     }
   }
 
   preload_scripts.push_back(new_preload_script);
+  return new_preload_script.id;
 }
 
 void Session::UnregisterPreloadScript(gin_helper::ErrorThrower thrower,

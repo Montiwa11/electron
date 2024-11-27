@@ -55,11 +55,10 @@ Session.prototype.setPreloads = function (preloads) {
     this.unregisterPreloadScript(script.id);
   });
   preloads.map(filePath => ({
-    id: `deprecated-${crypto.randomUUID()}`,
     type: 'frame',
     filePath,
     _deprecated: true
-  }) as Electron.PreloadScript).forEach(script => {
+  }) as Electron.PreloadScriptRegistration).forEach(script => {
     this.registerPreloadScript(script);
   });
 };
