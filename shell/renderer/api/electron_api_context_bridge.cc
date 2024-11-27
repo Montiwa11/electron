@@ -916,103 +916,29 @@ v8::MaybeLocal<v8::Value> CloneValueToContext(
   return maybe_result;
 }
 
-// Evaluate a script in the target world ID. The script is executed
-// synchronously and clones the result into the calling context.
-v8::Local<v8::Value> EvaluateStringInWorld(v8::Isolate* isolate,
-                                           const int world_id,
-                                           const std::string& source) {
-  v8::Local<v8::Context> source_context = isolate->GetCurrentContext();
-  v8::Context::Scope source_scope(source_context);
-
-  // Get the target context
-  v8::MaybeLocal<v8::Context> maybe_target_context =
-      GetTargetContext(isolate, world_id);
-  v8::Local<v8::Context> target_context;
-  if (!maybe_target_context.ToLocal(&target_context)) {
-    isolate->ThrowException(v8::Exception::Error(gin::StringToV8(
-        isolate,
-        base::StringPrintf("Failed to get context for world %d", world_id))));
-    return v8::Local<v8::Value>();
-  }
-
-  // Compile the script
-  v8::MaybeLocal<v8::Script> maybe_script;
-  std::string error_message = "Unknown error during script compilation";
-  {
-    v8::Context::Scope target_scope(target_context);
-    v8::TryCatch try_catch(isolate);
-    maybe_script =
-        v8::Script::Compile(target_context, gin::StringToV8(isolate, source));
-    if (try_catch.HasCaught()) {
-      // Must throw outside of TryCatch scope
-      v8::String::Utf8Value error(isolate, try_catch.Exception());
-      error_message =
-          *error ? *error : "Unknown error during script compilation";
-    }
-  }
-  v8::Local<v8::Script> script;
-  if (!maybe_script.ToLocal(&script)) {
-    isolate->ThrowException(
-        v8::Exception::Error(gin::StringToV8(isolate, error_message)));
-    return v8::Local<v8::Value>();
-  }
-
-  // Run the script
-  v8::MaybeLocal<v8::Value> maybe_result;
-  {
-    v8::Context::Scope target_scope(target_context);
-    v8::TryCatch try_catch(isolate);
-    maybe_result = script->Run(target_context);
-    if (try_catch.HasCaught()) {
-      // Must throw outside of TryCatch scope
-      v8::String::Utf8Value error(isolate, try_catch.Exception());
-      error_message = *error ? *error : "Unknown error during script execution";
-    }
-  }
-  v8::Local<v8::Value> result;
-  if (!maybe_result.ToLocal(&result)) {
-    isolate->ThrowException(
-        v8::Exception::Error(gin::StringToV8(isolate, error_message)));
-    return v8::Local<v8::Value>();
-  }
-
-  // Clone the value into the callee/source context
-  v8::Context::Scope target_scope(target_context);
-  std::string clone_error_message;
-  v8::MaybeLocal<v8::Value> maybe_cloned_result =
-      CloneValueToContext(isolate, result, source_context, clone_error_message);
-  v8::Local<v8::Value> cloned_result;
-  if (!maybe_cloned_result.ToLocal(&cloned_result)) {
-    isolate->ThrowException(
-        v8::Exception::Error(gin::StringToV8(isolate, clone_error_message)));
-    return v8::Local<v8::Value>();
-  }
-  return cloned_result;
-}
-
 // Serialize script to be executed in the given world.
 v8::Local<v8::Value> ExecuteInWorld(v8::Isolate* isolate,
                                     const int world_id,
                                     gin_helper::Arguments* args) {
-  gin_helper::Dictionary script;
-
-  if (args->Length() >= 1 && !args->GetNext(&script)) {
+  // Get execution script argument
+  gin_helper::Dictionary exec_script;
+  if (args->Length() >= 1 && !args->GetNext(&exec_script)) {
     gin_helper::ErrorThrower(args->isolate()).ThrowError("Invalid script");
     return v8::Local<v8::Value>();
   }
 
-  // Get "func" from script
+  // Get "func" from execution script
   v8::Local<v8::Function> func;
-  if (!script.Get("func", &func)) {
+  if (!exec_script.Get("func", &func)) {
     gin_helper::ErrorThrower(isolate).ThrowError(
         "Function 'func' is required in script");
     return v8::Local<v8::Value>();
   }
 
-  // Get optional "args" from script
+  // Get optional "args" from execution script
   v8::Local<v8::Array> args_array;
   v8::Local<v8::Value> args_value;
-  if (script.Get("args", &args_value)) {
+  if (exec_script.Get("args", &args_value)) {
     if (!args_value->IsArray()) {
       gin_helper::ErrorThrower(isolate).ThrowError("'args' must be an array");
       return v8::Local<v8::Value>();
@@ -1033,41 +959,131 @@ v8::Local<v8::Value> ExecuteInWorld(v8::Isolate* isolate,
   v8::String::Utf8Value serialized_func_utf8(isolate, serialized_func);
   std::string func_str(*serialized_func_utf8, serialized_func_utf8.length());
 
-  // Serialize arguments to JSON strings
-  std::vector<std::string> args_strings;
-  uint32_t args_length = args_array->Length();
-  v8::Local<v8::Context> context = isolate->GetCurrentContext();
+  v8::Local<v8::Context> source_context = isolate->GetCurrentContext();
+  v8::Context::Scope source_scope(source_context);
 
-  for (uint32_t i = 0; i < args_length; ++i) {
-    v8::Local<v8::Value> arg;
-    if (!args_array->Get(context, i).ToLocal(&arg)) {
-      gin_helper::ErrorThrower(isolate).ThrowError(
-          base::StringPrintf("Failed to get argument at index %d", i));
-      return v8::Local<v8::Value>();
-    }
-
-    base::Value base_value;
-    if (!gin::ConvertFromV8(isolate, arg, &base_value)) {
-      gin_helper::ErrorThrower(isolate).ThrowError(
-          base::StringPrintf("Failed to serialize argument at index %d", i));
-      return v8::Local<v8::Value>();
-    }
-
-    std::string json_string;
-    if (!base::JSONWriter::Write(base_value, &json_string)) {
-      gin_helper::ErrorThrower(isolate).ThrowError(
-          base::StringPrintf("Failed to serialize argument at index %d", i));
-      return v8::Local<v8::Value>();
-    }
-
-    args_strings.push_back(json_string);
+  // Get the target context
+  v8::MaybeLocal<v8::Context> maybe_target_context =
+      GetTargetContext(isolate, world_id);
+  v8::Local<v8::Context> target_context;
+  if (!maybe_target_context.ToLocal(&target_context)) {
+    isolate->ThrowException(v8::Exception::Error(gin::StringToV8(
+        isolate,
+        base::StringPrintf("Failed to get context for world %d", world_id))));
+    return v8::Local<v8::Value>();
   }
 
-  std::string args_expression = base::JoinString(args_strings, ",");
-  std::string code_to_execute =
-      base::StringPrintf("(%s)(%s)", func_str.c_str(), args_expression.c_str());
+  // Compile the script
+  v8::MaybeLocal<v8::Script> maybe_compiled_script;
+  std::string error_message = "Unknown error during script compilation";
+  {
+    v8::Context::Scope target_scope(target_context);
+    v8::TryCatch try_catch(isolate);
+    std::string return_func_code = base::StringPrintf("(%s)", func_str.c_str());
+    maybe_compiled_script = v8::Script::Compile(
+        target_context, gin::StringToV8(isolate, return_func_code));
+    if (try_catch.HasCaught()) {
+      // Must throw outside of TryCatch scope
+      v8::String::Utf8Value error(isolate, try_catch.Exception());
+      error_message =
+          *error ? *error : "Unknown error during script compilation";
+    }
+  }
+  v8::Local<v8::Script> compiled_script;
+  if (!maybe_compiled_script.ToLocal(&compiled_script)) {
+    isolate->ThrowException(
+        v8::Exception::Error(gin::StringToV8(isolate, error_message)));
+    return v8::Local<v8::Value>();
+  }
 
-  return EvaluateStringInWorld(isolate, world_id, code_to_execute);
+  // Run the script
+  v8::MaybeLocal<v8::Value> maybe_script_result;
+  {
+    v8::Context::Scope target_scope(target_context);
+    v8::TryCatch try_catch(isolate);
+    maybe_script_result = compiled_script->Run(target_context);
+    if (try_catch.HasCaught()) {
+      // Must throw outside of TryCatch scope
+      v8::String::Utf8Value error(isolate, try_catch.Exception());
+      error_message = *error ? *error : "Unknown error during script execution";
+    }
+  }
+  v8::Local<v8::Value> script_result;
+  if (!maybe_script_result.ToLocal(&script_result)) {
+    isolate->ThrowException(
+        v8::Exception::Error(gin::StringToV8(isolate, error_message)));
+    return v8::Local<v8::Value>();
+  }
+
+  // Get copied function from the script result
+  if (!script_result->IsFunction()) {
+    isolate->ThrowException(v8::Exception::Error(
+        gin::StringToV8(isolate, "Unknown error retrieving function")));
+    return v8::Local<v8::Value>();
+  }
+  v8::Local<v8::Function> copied_func = script_result.As<v8::Function>();
+
+  // Proxy args to be passed into copied function
+  std::vector<v8::Local<v8::Value>> proxied_args;
+  {
+    bool support_dynamic_properties = false;
+    context_bridge::ObjectCache object_cache;
+    uint32_t args_length = args_array->Length();
+
+    for (uint32_t i = 0; i < args_length; ++i) {
+      v8::Local<v8::Value> arg;
+      if (!args_array->Get(source_context, i).ToLocal(&arg)) {
+        gin_helper::ErrorThrower(isolate).ThrowError(
+            base::StringPrintf("Failed to get argument at index %d", i));
+        return v8::Local<v8::Value>();
+      }
+
+      auto proxied_arg = PassValueToOtherContext(
+          source_context, target_context, arg, source_context->Global(),
+          &object_cache, support_dynamic_properties, 0,
+          BridgeErrorTarget::kSource);
+      if (proxied_arg.IsEmpty()) {
+        gin_helper::ErrorThrower(isolate).ThrowError(
+            base::StringPrintf("Failed to proxy argument at index %d", i));
+        return v8::Local<v8::Value>();
+      }
+      proxied_args.push_back(proxied_arg.ToLocalChecked());
+    }
+  }
+
+  // Call the function and get the result
+  v8::MaybeLocal<v8::Value> maybe_result;
+  {
+    v8::Context::Scope target_scope(target_context);
+    v8::TryCatch try_catch(isolate);
+    maybe_result = copied_func->Call(isolate, target_context, v8::Null(isolate),
+                                     proxied_args.size(), proxied_args.data());
+    if (try_catch.HasCaught()) {
+      // Must throw outside of TryCatch scope
+      v8::String::Utf8Value error(isolate, try_catch.Exception());
+      error_message =
+          *error ? *error : "Unknown error during function execution";
+    }
+  }
+  v8::Local<v8::Value> result;
+  if (!maybe_result.ToLocal(&result)) {
+    isolate->ThrowException(
+        v8::Exception::Error(gin::StringToV8(isolate, error_message)));
+    return v8::Local<v8::Value>();
+  }
+
+  // Clone the result into the callee/source context
+  v8::Context::Scope target_scope(target_context);
+  std::string clone_error_message;
+  v8::MaybeLocal<v8::Value> maybe_cloned_result =
+      CloneValueToContext(isolate, result, source_context, clone_error_message);
+  v8::Local<v8::Value> cloned_result;
+  if (!maybe_cloned_result.ToLocal(&cloned_result)) {
+    isolate->ThrowException(
+        v8::Exception::Error(gin::StringToV8(isolate, clone_error_message)));
+    return v8::Local<v8::Value>();
+  }
+  return cloned_result;
 }
 
 }  // namespace api

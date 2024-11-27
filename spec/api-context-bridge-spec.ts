@@ -1292,7 +1292,7 @@ describe('contextBridge', () => {
       });
 
       describe('executeInMainWorld', () => {
-        it('serializes function and args', async () => {
+        it('serializes function and proxies args', async () => {
           await makeBindingWindow(async () => {
             const values = [
               undefined,
@@ -1326,18 +1326,44 @@ describe('contextBridge', () => {
           });
           const result = await callWithBindings(() => {
             // @ts-ignore
-            return globalThis.args;
+            return globalThis.args.map(arg => {
+              // Map unserializable IPC types to their type string
+              if (['function', 'symbol'].includes(typeof arg)) {
+                return typeof arg;
+              } else {
+                return arg;
+              }
+            });
           });
           expect(result).to.deep.equal([
-            'FAIL',
+            undefined,
             null,
             123,
             'string',
             true,
             [123, 'string', true, ['foo']],
-            'FAIL',
-            'FAIL'
+            'function',
+            'symbol'
           ]);
+        });
+
+        it('allows function args to be invoked', async () => {
+          const donePromise = once(ipcMain, 'done');
+          makeBindingWindow(() => {
+            const uuid = crypto.randomUUID();
+            const done = (receivedUuid: string) => {
+              if (receivedUuid === uuid) {
+                require('electron').ipcRenderer.send('done');
+              }
+            };
+            contextBridge.executeInMainWorld({
+              func: (callback, innerUuid) => {
+                callback(innerUuid);
+              },
+              args: [done, uuid]
+            });
+          });
+          await donePromise;
         });
 
         it('safely clones returned objects', async () => {
