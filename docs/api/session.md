@@ -1337,10 +1337,16 @@ Returns `Promise<void>` - resolves when the session’s HTTP authentication cach
 Adds scripts that will be executed on ALL web contents that are associated with
 this session just before normal `preload` scripts run.
 
+**Deprecated:** Use the new `ses.registerPreloadScript` API. This will overwrite any preload scripts
+registered for `service-worker` context types.
+
 #### `ses.getPreloads()` _Deprecated_
 
 Returns `string[]` an array of paths to preload scripts that have been
 registered.
+
+**Deprecated:** Use the new `ses.getPreloadScripts` API. This will only return preload script paths
+for `frame` context types.
 
 #### `ses.registerPreloadScript(script)`
 
